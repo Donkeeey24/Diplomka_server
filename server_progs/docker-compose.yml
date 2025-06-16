@@ -1,0 +1,61 @@
+services:
+  app:
+    build:
+      context: .
+    container_name: meteo_app
+    command: ["/app/wait-for-it.sh", "postgres:5432", "--", "sh", "-c", "python async_mqtt_client.py & uvicorn main:app --host 0.0.0.0 --port 8000"]
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_USER=postgres
+      - PG_PASSWORD=postgres
+      - PG_DATABASE=postgres
+    depends_on:
+      - mosquitto
+      - postgres
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  mqtt-fake-sender:
+    build:
+      context: ./mqtt-fake-sender
+      dockerfile: Dockerfile
+    container_name: mqtt_fake_sender
+    environment:
+      - BROKER_HOST=mosquitto
+      - BROKER_PORT=1883
+      - TOPIC=/events
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+
+volumes:
+  pg_data:
+

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Meteo Data Visualization</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    #filters { margin-bottom: 1em; }
+    label { margin-right: 1em; }
+    #myChart { max-width: 900px; }
+  </style>
+</head>
+<body>
+  <h2>Meteo Data Visualization</h2>
+  <div id="filters">
+    <label>
+      Sensor:
+      <select id="sensorSelect"><option value="">Všechny</option></select>
+    </label>
+    <label>From: <input type="datetime-local" id="from"></label>
+    <label>To: <input type="datetime-local" id="to"></label>
+    <button onclick="loadData()">Vyhledat</button>
+    <button onclick="toggleAutoRefresh()">Auto refresh: <span id="autorefresh-status">OFF</span></button>
+  </div>
+  <canvas id="myChart"></canvas>
+  <script>
+    let chart;
+    let autoRefresh = false;
+    let refreshInterval;
+
+    async function fetchSensors() {
+      const resp = await fetch("/sensors");
+      const sensors = await resp.json();
+      const select = document.getElementById("sensorSelect");
+      select.innerHTML = '<option value="">Všechny</option>';
+      sensors.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        select.appendChild(opt);
+      });
+    }
+
+    async function loadData() {
+      const from = document.getElementById("from").value;
+      const to = document.getElementById("to").value;
+      const sensor = document.getElementById("sensorSelect").value;
+      let url = "/data";
+      const params = [];
+      if (from) params.push("from_time=" + encodeURIComponent(from));
+      if (to) params.push("to_time=" + encodeURIComponent(to));
+      if (sensor) params.push("sensor_uuid=" + encodeURIComponent(sensor));
+      if (params.length) url += "?" + params.join("&");
+      const resp = await fetch(url);
+      const data = await resp.json();
+      renderChart(data.reverse());
+    }
+
+    function renderChart(data) {
+      const ctx = document.getElementById('myChart').getContext('2d');
+      const labels = data.map(d => d.time.replace("T", " ").replace(/\..+/, ""));
+      const values = data.map(d => d.value);
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Value',
+            data: values,
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+          }]
+        }
+      });
+    }
+
+    function toggleAutoRefresh() {
+      autoRefresh = !autoRefresh;
+      document.getElementById("autorefresh-status").textContent = autoRefresh ? "ON" : "OFF";
+      if (autoRefresh) {
+        refreshInterval = setInterval(loadData, 5000);
+      } else {
+        clearInterval(refreshInterval);
+      }
+    }
+
+    // Načti při startu
+    fetchSensors().then(loadData);
+  </script>
+</body>
+</html>
