@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 import asyncpg
 import os
 from typing import Optional
+from datetime import datetime
 
 app = FastAPI()
 app.add_middleware(
@@ -34,6 +35,18 @@ async def startup():
 async def shutdown():
     await pool.close()
 
+def parse_time(ts):
+    if ts is None:
+        return None
+    # Zkus převod s vteřinami i bez
+    try:
+        return datetime.fromisoformat(ts)
+    except ValueError:
+        try:
+            return datetime.strptime(ts, "%Y-%m-%dT%H:%M")
+        except Exception:
+            return None
+
 @app.get("/data")
 async def get_data(
     from_time: Optional[str] = Query(None),
@@ -42,12 +55,18 @@ async def get_data(
 ):
     where = []
     params = []
-    if from_time:
+    from_dt = parse_time(from_time)
+    to_dt = parse_time(to_time)
+
+    # Debug: vypiš co filtruješ
+    print("Filtering from:", from_dt, "to:", to_dt, "sensor:", sensor_uuid)
+
+    if from_dt:
         where.append("time >= $%d" % (len(params)+1))
-        params.append(from_time)
-    if to_time:
+        params.append(from_dt)
+    if to_dt:
         where.append("time <= $%d" % (len(params)+1))
-        params.append(to_time)
+        params.append(to_dt)
     if sensor_uuid:
         where.append("sensor_uuid = $%d" % (len(params)+1))
         params.append(sensor_uuid)
@@ -55,6 +74,9 @@ async def get_data(
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY time DESC LIMIT 500;"
+    # Debug log - odeber, pokud nechceš logy v produkci
+    print("SQL:", sql)
+    print("Params:", params)
     async with pool.acquire() as conn:
         rows = await conn.fetch(sql, *params)
         return [dict(row) for row in rows]
