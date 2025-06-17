@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Ovosad Meteo Vizualizace</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Stačí pouze tento řádek, není třeba samostatně načítat date-fns -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <style>
     html, body { height: 100%; margin: 0; padding: 0; box-sizing: border-box; }
@@ -216,9 +215,39 @@
       word-break: break-all;
       white-space: pre-wrap;
     }
+    /* Login modal styl */
+    #loginModal {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #0008;
+      z-index: 9999;
+    }
+    #loginModalInner {
+      background: #fff;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px #0004;
+      min-width: 260px;
+    }
+    #loginModal input { width: 100%; margin-bottom: 10px; }
+    #loginError { color: red; min-height: 1.1em; margin-top: 8px; }
   </style>
 </head>
 <body>
+  <div id="loginModal">
+    <div id="loginModalInner">
+      <h2>Přihlášení</h2>
+      <input id="loginUser" type="text" placeholder="Uživatel" autocomplete="username">
+      <input id="loginPass" type="password" placeholder="Heslo" autocomplete="current-password">
+      <button onclick="doLogin()">Přihlásit se</button>
+      <div id="loginError"></div>
+    </div>
+  </div>
   <div id="layout">
     <!-- Levý modrý sloupec -->
     <div id="sidebar">
@@ -273,219 +302,6 @@
     </div>
   </div>
   <!-- JS logika -->
-  <script>
-    let chart;
-    let autoRefresh = false;
-    let refreshInterval;
-    let lastUsedData = [];
-
-    async function fetchSensors() {
-      try {
-        const resp = await fetch("/sensors");
-        const sensors = await resp.json();
-        const select = document.getElementById("sensorSelect");
-        select.innerHTML = '<option value="">Všechny</option>';
-        sensors.forEach(s => {
-          const opt = document.createElement("option");
-          opt.value = s;
-          opt.textContent = s;
-          select.appendChild(opt);
-        });
-      } catch (e) {
-        alert("Nepodařilo se načíst seznam senzorů!");
-      }
-    }
-
-    function getLocalInputUTCString(fieldId) {
-      const val = document.getElementById(fieldId).value;
-      if (!val) return "";
-      const d = new Date(val);
-      return d.getUTCFullYear() + "-" +
-             String(d.getUTCMonth()+1).padStart(2,'0') + "-" +
-             String(d.getUTCDate()).padStart(2,'0') + " " +
-             String(d.getUTCHours()).padStart(2,'0') + ":" +
-             String(d.getUTCMinutes()).padStart(2,'0') + ":" +
-             String(d.getUTCSeconds()).padStart(2,'0') + "+00:00";
-    }
-
-    function getUTCStringMinutesAgo(minutes) {
-      const now = new Date();
-      now.setSeconds(0, 0);
-      const past = new Date(now.getTime() - minutes * 60 * 1000);
-      return past.getUTCFullYear() + "-" +
-             String(past.getUTCMonth()+1).padStart(2,'0') + "-" +
-             String(past.getUTCDate()).padStart(2,'0') + " " +
-             String(past.getUTCHours()).padStart(2,'0') + ":" +
-             String(past.getUTCMinutes()).padStart(2,'0') + ":" +
-             String(past.getUTCSeconds()).padStart(2,'0') + "+00:00";
-    }
-
-    async function fetchData({from, to, sensor}) {
-      let url = "/data";
-      const params = [];
-      if (from) params.push("from_time=" + encodeURIComponent(from));
-      if (to) params.push("to_time=" + encodeURIComponent(to));
-      if (sensor) params.push("sensor_uuid=" + encodeURIComponent(sensor));
-      if (params.length) url += "?" + params.join("&");
-      const resp = await fetch(url);
-      const data = await resp.json();
-      return data;
-    }
-
-    function aggregateData(data, maxPoints) {
-      if (data.length <= maxPoints) return data;
-      const bucketSize = Math.ceil(data.length / maxPoints);
-      const buckets = [];
-      for (let i = 0; i < data.length; i += bucketSize) {
-        const slice = data.slice(i, i + bucketSize);
-        const avgY = slice.reduce((sum, d) => sum + parseFloat(d.value), 0) / slice.length;
-        const avgTime = new Date(
-          slice.reduce((sum, d) => sum + new Date(d.time).getTime(), 0) / slice.length
-        );
-        buckets.push({
-          time: avgTime.toISOString(),
-          value: avgY
-        });
-      }
-      return buckets;
-    }
-
-    async function loadData() {
-      let useLastX = autoRefresh;
-      let data = [];
-      let maxPoints = Number(document.getElementById("maxPoints").value) || 200;
-      let sensor = document.getElementById("sensorSelect").value;
-      let from, to;
-
-      if (useLastX) {
-        let lastMinutes = Number(document.getElementById("lastMinutes").value) || 10;
-        from = getUTCStringMinutesAgo(lastMinutes);
-        to = getUTCStringMinutesAgo(0);
-      } else {
-        from = getLocalInputUTCString("from");
-        to = getLocalInputUTCString("to");
-      }
-
-      data = await fetchData({from, to, sensor});
-      data.sort((a, b) => new Date(a.time) - new Date(b.time));
-      renderChart(data);
-    }
-
-    function renderChart(data) {
-      const maxPoints = Number(document.getElementById("maxPoints").value) || 200;
-      const reducedData = aggregateData(data, maxPoints);
-      lastUsedData = reducedData;
-
-      // Převod na {x, y}
-      const chartData = reducedData.map((d, i) => {
-        return {
-          x: d.time,
-          y: Number(d.value)
-        };
-      });
-
-      // Debugging: zkontroluj data, a případné chyby vypiš do konzole
-      console.log("chartData", chartData);
-      chartData.forEach(pt => {
-        if (typeof pt.y !== "number" || isNaN(pt.y)) {
-          console.warn("Špatná hodnota Y:", pt);
-        }
-        if (typeof pt.x !== "string" || !pt.x.match(/^\d{4}-\d{2}-\d{2}T/)) {
-          console.warn("Špatná hodnota X:", pt);
-        }
-      });
-
-      // Výpis výsledného pole pro Chart.js do stránky
-      const chartDataString = JSON.stringify(chartData, null, 2);
-      // document.getElementById("chartDataString").textContent = chartDataString;
-
-      const ctx = document.getElementById('myChart').getContext('2d');
-      if (chart) chart.destroy();
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          datasets: [{
-            label: 'Value',
-            data: chartData,
-            borderColor: 'rgb(75, 192, 192)',
-            tension: 0.1,
-            pointRadius: 3
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          //parsing: false, // Nutné pro {x, y}
-          scales: {
-            x: {
-              type: 'time',
-              time: {
-                tooltipFormat: 'yyyy-MM-dd HH:mm',
-                displayFormats: {
-                  minute: 'HH:mm',
-                  hour: 'HH:mm',
-                  day: 'dd.MM.',
-                  month: 'LLL yyyy'
-                }
-              },
-              title: {
-                display: true,
-                text: 'Čas'
-              }
-            },
-            y: {
-              title: {
-                display: true,
-                text: 'Hodnota'
-              }
-            }
-          }
-        }
-      });
-    }
-
-    function toggleAutoRefresh() {
-      autoRefresh = !autoRefresh;
-      document.getElementById("autorefresh-status").textContent = autoRefresh ? "ON" : "OFF";
-      if (autoRefresh) {
-        loadData();
-        refreshInterval = setInterval(() => {
-          loadData();
-        }, 5000);
-      } else {
-        clearInterval(refreshInterval);
-      }
-    }
-
-    function downloadCSV() {
-      if (!lastUsedData || !lastUsedData.length) {
-        alert("Žádná data k exportu!");
-        return;
-      }
-      let csv = "time,value\n";
-      lastUsedData.forEach(d => {
-        csv += `"${d.time.replace(/"/g, '""')}",${d.value}\n`;
-      });
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `export-meteo-${(new Date()).toISOString().slice(0,19).replace(/[-T:]/g,"")}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("lastMinutes").addEventListener("change", () => {
-        if (autoRefresh) {
-          clearInterval(refreshInterval);
-          toggleAutoRefresh();
-        }
-      });
-      document.getElementById("maxPoints").addEventListener("change", () => loadData());
-      document.getElementById("sensorSelect").addEventListener("change", () => loadData());
-      fetchSensors().then(loadData);
-    });
-  </script>
+  <script src="static/main.js"></script>
 </body>
 </html>

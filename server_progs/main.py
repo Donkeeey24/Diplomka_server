@@ -6,6 +6,10 @@ import asyncpg
 import os
 from typing import Optional
 from datetime import datetime
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordRequestForm
+from auth import authenticate_user, create_access_token, get_current_user
+from datetime import timedelta
 
 app = FastAPI()
 app.add_middleware(
@@ -26,6 +30,17 @@ DB_CONFIG = {
 }
 pool = None
 
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    access_token = create_access_token(
+        data={"sub": user["username"]},
+        expires_delta=timedelta(minutes=120)
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.on_event("startup")
 async def startup():
     global pool
@@ -38,7 +53,6 @@ async def shutdown():
 def parse_time(ts):
     if ts is None:
         return None
-    # Zkus převod s vteřinami i bez
     try:
         return datetime.fromisoformat(ts)
     except ValueError:
@@ -47,20 +61,19 @@ def parse_time(ts):
         except Exception:
             return None
 
+# --------- Oprava zde: /data a /sensors jsou chráněné, / je veřejné --------
+
 @app.get("/data")
 async def get_data(
     from_time: Optional[str] = Query(None),
     to_time: Optional[str] = Query(None),
-    sensor_uuid: Optional[str] = Query(None)
+    sensor_uuid: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user)
 ):
     where = []
     params = []
     from_dt = parse_time(from_time)
     to_dt = parse_time(to_time)
-
-    # Debug: vypiš co filtruješ
-    print("Filtering from:", from_dt, "to:", to_dt, "sensor:", sensor_uuid)
-
     if from_dt:
         where.append("time >= $%d" % (len(params)+1))
         params.append(from_dt)
@@ -74,19 +87,21 @@ async def get_data(
     if where:
         sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY time DESC LIMIT 500;"
-    # Debug log - odeber, pokud nechceš logy v produkci
-    print("SQL:", sql)
-    print("Params:", params)
     async with pool.acquire() as conn:
         rows = await conn.fetch(sql, *params)
         return [dict(row) for row in rows]
 
 @app.get("/sensors")
-async def get_sensors():
+async def get_sensors(current_user: dict = Depends(get_current_user)):
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT DISTINCT sensor_uuid FROM sensor_data ORDER BY sensor_uuid;")
         return [row["sensor_uuid"] for row in rows]
 
+@app.get("/protected")
+async def protected_route(current_user: dict = Depends(get_current_user)):
+    return {"msg": f"Hello {current_user['username']}"}
+
+# --------- Veřejný endpoint pro root, aby šel zobrazit login modal ---------
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")

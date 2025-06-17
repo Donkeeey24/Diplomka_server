@@ -3,3 +3,6 @@ uvicorn
 asyncpg
 gmqtt
 python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
