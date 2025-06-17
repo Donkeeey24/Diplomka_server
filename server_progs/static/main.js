@@ -2,6 +2,7 @@ let chart;
 let autoRefresh = false;
 let refreshInterval;
 let lastUsedData = [];
+let sensorMeta = {}; // {uuid: {name, value_type, unit}}
 
 // --- LOGIN MODAL FUNCTIONALITA ---
 async function doLogin() {
@@ -17,6 +18,7 @@ async function doLogin() {
     window.localStorage.setItem("access_token", data.access_token);
     document.getElementById("loginModal").style.display = "none";
     document.getElementById("main-content").style.display = "";
+    showGraphsTab();
     initializeApp();
   } else {
     document.getElementById("loginError").textContent = "Chybný login!";
@@ -36,6 +38,7 @@ async function checkLogin() {
       if (resp.ok) {
         document.getElementById("loginModal").style.display = "none";
         document.getElementById("main-content").style.display = "";
+        showGraphsTab();
         initializeApp();
         return;
       }
@@ -52,22 +55,65 @@ async function checkLogin() {
   });
 }
 
+// --- SPRÁVA SENZORŮ ---
+async function loadSensorMetadata() {
+  const resp = await fetch("/sensor-metadata", {headers: getAuthHeader()});
+  const metadata = await resp.json();
+  sensorMeta = {};
+  for (const m of metadata) sensorMeta[m.sensor_uuid] = m;
+
+  // Získej také všechna sensor_uuid
+  const resp2 = await fetch("/sensors", {headers: getAuthHeader()});
+  const uuids = await resp2.json();
+
+  // Sloučení podle uuid
+  const tbody = document.querySelector("#sensorsTable tbody");
+  tbody.innerHTML = "";
+  uuids.forEach(uuid => {
+    const meta = sensorMeta[uuid] || {name:"", value_type:"", unit:""};
+    tbody.innerHTML += `
+      <tr>
+        <td>${uuid}</td>
+        <td><input value="${meta.name||""}" id="name-${uuid}"></td>
+        <td><input value="${meta.value_type||""}" id="type-${uuid}"></td>
+        <td><input value="${meta.unit||""}" id="unit-${uuid}"></td>
+        <td><button onclick="saveMetadata('${uuid}')">Uložit</button></td>
+      </tr>
+    `;
+  });
+}
+
+async function saveMetadata(uuid) {
+  const name = document.getElementById(`name-${uuid}`).value;
+  const value_type = document.getElementById(`type-${uuid}`).value;
+  const unit = document.getElementById(`unit-${uuid}`).value;
+  await fetch(`/sensor-metadata/${uuid}`, {
+    method: "POST",
+    headers: {...getAuthHeader(), "Content-Type":"application/json"},
+    body: JSON.stringify({name, value_type, unit})
+  });
+  alert("Uloženo.");
+  await loadSensorMetadata(); // Refresh
+  if (document.getElementById("graphs-section").style.display !== "none") fetchSensorsAndMetadata();
+}
+
 // --- APP FUNCTIONALITA ---
-async function fetchSensors() {
-  try {
-    const resp = await fetch("/sensors", { headers: getAuthHeader() });
-    const sensors = await resp.json();
-    const select = document.getElementById("sensorSelect");
-    select.innerHTML = '<option value="">Všechny</option>';
-    sensors.forEach(s => {
-      const opt = document.createElement("option");
-      opt.value = s;
-      opt.textContent = s;
-      select.appendChild(opt);
-    });
-  } catch (e) {
-    alert("Nepodařilo se načíst seznam senzorů!");
-  }
+async function fetchSensorsAndMetadata() {
+  const [sensors, metadata] = await Promise.all([
+    fetch("/sensors", {headers: getAuthHeader()}).then(r => r.json()),
+    fetch("/sensor-metadata", {headers: getAuthHeader()}).then(r => r.json())
+  ]);
+  sensorMeta = {};
+  for (const m of metadata) sensorMeta[m.sensor_uuid] = m;
+  const select = document.getElementById("sensorSelect");
+  select.innerHTML = '<option value="">Všechny</option>';
+  sensors.forEach(uuid => {
+    const name = sensorMeta[uuid]?.name || uuid;
+    const opt = document.createElement("option");
+    opt.value = uuid;
+    opt.textContent = name;
+    select.appendChild(opt);
+  });
 }
 
 function getLocalInputUTCString(fieldId) {
@@ -156,6 +202,17 @@ function renderChart(data) {
 
   const ctx = document.getElementById('myChart').getContext('2d');
   if (chart) chart.destroy();
+
+  // Popisek y-ové osy podle veličiny a jednotky
+  const sensor = document.getElementById("sensorSelect").value;
+  let ylabel = "Hodnota";
+  if (sensorMeta[sensor]) {
+    const m = sensorMeta[sensor];
+    if (m.value_type && m.unit) ylabel = `${m.value_type} [${m.unit}]`;
+    else if (m.value_type) ylabel = m.value_type;
+    else if (m.unit) ylabel = `[${m.unit}]`;
+  }
+
   chart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -182,15 +239,12 @@ function renderChart(data) {
               month: 'LLL yyyy'
             }
           },
-          title: {
-            display: true,
-            text: 'Čas'
-          }
+          title: { display: true, text: 'Čas' }
         },
         y: {
           title: {
             display: true,
-            text: 'Hodnota'
+            text: ylabel
           }
         }
       }
@@ -203,9 +257,7 @@ function toggleAutoRefresh() {
   document.getElementById("autorefresh-status").textContent = autoRefresh ? "ON" : "OFF";
   if (autoRefresh) {
     loadData();
-    refreshInterval = setInterval(() => {
-      loadData();
-    }, 5000);
+    refreshInterval = setInterval(() => { loadData(); }, 5000);
   } else {
     clearInterval(refreshInterval);
   }
@@ -230,6 +282,14 @@ function downloadCSV() {
 }
 
 function initializeApp() {
+  // Přepínání záložek
+  document.getElementById("tab-graphs").addEventListener("click", showGraphsTab);
+  document.getElementById("tab-admin").addEventListener("click", showAdminTab);
+
+  // Select sensor
+  document.getElementById("sensorSelect").addEventListener("change", () => {
+    loadData();
+  });
   document.getElementById("lastMinutes").addEventListener("change", () => {
     if (autoRefresh) {
       clearInterval(refreshInterval);
@@ -237,8 +297,24 @@ function initializeApp() {
     }
   });
   document.getElementById("maxPoints").addEventListener("change", () => loadData());
-  document.getElementById("sensorSelect").addEventListener("change", () => loadData());
-  fetchSensors().then(loadData);
+
+  // Init
+  fetchSensorsAndMetadata().then(loadData);
+}
+
+function showGraphsTab() {
+  document.getElementById("graphs-section").style.display = "";
+  document.getElementById("device-admin").style.display = "none";
+  document.getElementById("tab-graphs").classList.add("selected");
+  document.getElementById("tab-admin").classList.remove("selected");
+  fetchSensorsAndMetadata();
+}
+function showAdminTab() {
+  document.getElementById("graphs-section").style.display = "none";
+  document.getElementById("device-admin").style.display = "";
+  document.getElementById("tab-admin").classList.add("selected");
+  document.getElementById("tab-graphs").classList.remove("selected");
+  loadSensorMetadata();
 }
 
 document.addEventListener("DOMContentLoaded", checkLogin);

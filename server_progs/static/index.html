@@ -8,90 +8,50 @@
   <style>
     html, body { height: 100%; margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI',sans-serif; background: #fafbfc; }
-    #layout {
-      display: flex;
-      height: 100vh;
-    }
-    #sidebar {
-      background: #5b98c9;
-      min-width: 110px;
-      width: 110px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      color: #fff;
-      font-size: 2em;
-      letter-spacing: 0.06em;
-    }
-    #sidebar .sidebar-title {
-      writing-mode: vertical-lr;
-      transform: rotate(180deg);
-      margin-top: 30px;
-      font-size: 2.1em;
-      font-weight: bold;
-      letter-spacing: 0.12em;
-    }
-    #sidebar .sidebar-icon {
-      margin-bottom: 25px;
-      width: 70px;
-      opacity: 0.85;
-    }
-    #main-content {
-      flex: 1;
+    #layout { display: flex; height: 100vh; }
+    #sidebar { background: #5b98c9; min-width: 110px; width: 110px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; color: #fff; font-size: 2em; letter-spacing: 0.06em; }
+    #sidebar .sidebar-title { writing-mode: vertical-lr; transform: rotate(180deg); margin-top: 30px; font-size: 2.1em; font-weight: bold; letter-spacing: 0.12em; }
+    #sidebar .sidebar-icon { margin-bottom: 25px; width: 70px; opacity: 0.85; }
+    #main-content { flex: 1; display: flex; flex-direction: column; background: #fafbfc; }
+    #topnav { height: 60px; background: #eaeaea; border-bottom: 3px solid #5b98c9; display: flex; align-items: stretch; font-size: 1.23em; }
+    #topnav .menu-item { padding: 0 34px; display: flex; align-items: center; cursor: pointer; font-weight: bold; border-right: 1px solid #bbb; color: #2a2a2a; background: none; outline: none; border: none; font-family: inherit; }
+    #topnav .menu-item:last-child { border-right: none; }
+    #topnav .menu-item.selected { background: #f5faff; color: #3572b0; border-bottom: 3px solid #5b98c9; }
+    #main-panel { flex: 1; display: flex; flex-direction: column; align-items: stretch; padding: 0 10px; min-width: 0; }
+    #graphs-section { width: 100%; }
+    #graph-outer-container {
       display: flex;
       flex-direction: column;
-      background: #fafbfc;
-    }
-    #topnav {
-      height: 60px;
-      background: #eaeaea;
-      border-bottom: 3px solid #5b98c9;
-      display: flex;
       align-items: stretch;
-      font-size: 1.23em;
+      width: 100%;
+      max-width: none;
+      margin-top: 22px;
     }
-    #topnav .menu-item {
-      padding: 0 34px;
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      font-weight: bold;
-      border-right: 1px solid #bbb;
-      color: #2a2a2a;
-      background: none;
-      outline: none;
-      border: none;
-      font-family: inherit;
-    }
-    #topnav .menu-item:last-child {
-      border-right: none;
-    }
-    #topnav .menu-item.selected {
-      background: #f5faff;
-      color: #3572b0;
-      border-bottom: 3px solid #5b98c9;
-    }
-    #main-panel {
-      flex: 1;
+    #sensorSelect-block {
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 0 10px;
-      min-width: 0;
+      margin-bottom: 12px;
+      width: 100%;
+    }
+    #sensorSelect-label {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    #sensorSelect {
+      min-width: 220px;
+      margin-bottom: 0;
     }
     #graph-row {
-      width: 100%;
-      max-width: 900px;
       display: flex;
       flex-direction: row;
-      align-items: flex-start;
-      justify-content: center;
-      margin-top: 22px;
-      gap: 30px;
+      align-items: stretch;
+      width: 100%;
+      max-width: none;
+      gap: 0;
     }
     #chart-area {
-      flex: 1 1 600px;
+      flex: 1 1 auto;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -101,141 +61,80 @@
       border-radius: 14px;
       box-shadow: 0 2px 8px #0002;
       padding: 6px 6px 6px 6px;
-      margin-bottom: 12px;
+      margin-bottom: 0;
     }
     #myChart {
-      width: 600px;
-      height: 400px;
+      width: 100%;
+      height: 430px;
       max-width: 100%;
       max-height: 100%;
       display: block;
       background: #fff;
       border-radius: 14px;
     }
-    #settings-panel {
-      width: 180px;
-      margin-top: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 20px;
-    }
-    .panel-block {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      margin-bottom: 0;
-    }
-    .panel-block label {
-      font-size: 1.09em;
-      margin-bottom: 6px;
-      font-weight: 600;
-      text-align: right;
-    }
-    .panel-block input,
-    .panel-block select,
-    .panel-block button {
-      font-size: 1em;
-      padding: 5px 10px;
-      margin-bottom: 5px;
-    }
-    .panel-block button,
-    .csv-btn {
-      background: #5b98c9;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background 0.2s;
-      padding: 5px 18px;
-    }
-    .panel-block button:hover,
-    .csv-btn:hover {
-      background: #4476a9;
-    }
-    #filter-panel {
-      width: 100%;
-      max-width: 900px;
+    /* Panel pod grafem */
+    #bottom-panels-row {
       display: flex;
       flex-direction: row;
-      align-items: flex-start;
       justify-content: space-between;
-      gap: 30px;
-      margin: 0 auto;
-      margin-top: 28px;
+      align-items: flex-start;
+      width: 100%;
+      max-width: none;
+      margin-top: 12px;
     }
-    #filter-panel .filter-block {
+    /* Levý spodní panel */
+    #left-bottom-panel {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 7px;
-      font-size: 1em;
+      min-width: 160px;
+      margin-left: 0;
     }
-    #filter-panel .filter-block label {
-      font-weight: 500;
+    /* Prostřední spodní panel (Max points, Export - centrovaný pod grafem) */
+    #center-bottom-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 180px;
+      margin: 0 auto;
     }
-    #filter-panel .filter-block select,
-    #filter-panel .filter-block input {
-      font-size: 1em;
-      padding: 4px 8px;
-      min-width: 120px;
+    #center-bottom-panel .panel-block {
+      margin-bottom: 12px;
+      align-items: center;
     }
-    .auto-refresh-btn {
-      margin-top: 8px;
-      width: 150px;
-    }
-    .search-btn {
-      margin-top: 12px;
+    #center-bottom-panel input[type="number"] {
       width: 120px;
     }
+    /* Pravý spodní panel */
+    #right-bottom-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      min-width: 220px;
+      margin-right: 0;
+    }
+    #right-bottom-panel label {
+      align-self: flex-end;
+    }
     @media (max-width: 1100px) {
-      #graph-row, #filter-panel {
+      #graph-row, #bottom-panels-row {
         flex-direction: column;
-        align-items: center;
+        align-items: stretch;
         gap: 12px;
         max-width: 98vw;
       }
-      #settings-panel { flex-direction: row; gap: 20px; width: auto; margin-top: 0; }
-      #chart-area { width: 95vw; max-width: 600px; }
-      #myChart { width: 95vw; max-width: 600px; }
-      #filter-panel { flex-direction: column; gap: 16px; align-items: flex-start; }
-    }
-    #chartDataString {
-      width: 90vw;
-      max-width: 900px;
-      margin: 20px auto 0 auto;
-      font-size: 0.95em;
-      background: #f8f8ff;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      padding: 10px;
-      font-family: "Fira Mono", "Consolas", "Menlo", monospace;
-      color: #444;
-      word-break: break-all;
-      white-space: pre-wrap;
+      #center-bottom-panel { align-items: stretch; }
     }
     /* Login modal styl */
-    #loginModal {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh;
-      background: #0008;
-      z-index: 9999;
-    }
-    #loginModalInner {
-      background: #fff;
-      padding: 30px 40px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px #0004;
-      min-width: 260px;
-    }
+    #loginModal { display: none; flex-direction: column; align-items: center; justify-content: center; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0008; z-index: 9999; }
+    #loginModalInner { background: #fff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 2px 8px #0004; min-width: 260px; }
     #loginModal input { width: 100%; margin-bottom: 10px; }
     #loginError { color: red; min-height: 1.1em; margin-top: 8px; }
+    /* Správa zařízení tabulka */
+    #device-admin { margin: 40px; }
+    #device-admin table { border-collapse: collapse; background: #fff; }
+    #device-admin th, #device-admin td { border: 1px solid #ccc; padding: 7px 12px; }
+    #device-admin th { background: #f5faff; }
   </style>
 </head>
 <body>
@@ -249,59 +148,79 @@
     </div>
   </div>
   <div id="layout">
-    <!-- Levý modrý sloupec -->
     <div id="sidebar">
       <div class="sidebar-title">Ovosad</div>
       <img class="sidebar-icon" src="static/lev_2017.jpg" alt="Logo" />
     </div>
-    <!-- Pravá hlavní část -->
     <div id="main-content">
       <div id="topnav">
-        <button class="menu-item selected">Grafy</button>
-        <button class="menu-item">Správa zařízení</button>
+        <button class="menu-item selected" id="tab-graphs">Grafy</button>
+        <button class="menu-item" id="tab-admin">Správa zařízení</button>
       </div>
       <div id="main-panel">
-        <!-- Graf + max points, export, sensor select -->
-        <div id="graph-row">
-          <div id="chart-area">
-            <canvas id="myChart"></canvas>
-          </div>
-          <div id="settings-panel">
-            <div class="panel-block">
-              <label for="sensorSelect">Select from</label>
+        <!-- Grafy sekce -->
+        <div id="graphs-section">
+          <div id="graph-outer-container">
+            <!-- Select from dropdown NAHORU, centrovaný -->
+            <div id="sensorSelect-block">
+              <label id="sensorSelect-label" for="sensorSelect">Select from</label>
               <select id="sensorSelect"><option value="">Všechny</option></select>
             </div>
-            <div class="panel-block">
-              <label for="maxPoints">Max points</label>
-              <input type="number" id="maxPoints" min="10" value="200" style="width: 90px;">
+            <!-- Graf -->
+            <div id="graph-row">
+              <div id="chart-area">
+                <canvas id="myChart"></canvas>
+              </div>
             </div>
-            <div class="panel-block">
-              <label>Export to</label>
-              <button onclick="downloadCSV()" class="csv-btn">CSV</button>
+            <!-- Panel pod grafem (tři sloupce) -->
+            <div id="bottom-panels-row">
+              <!-- Levý: last x minutes -->
+              <div id="left-bottom-panel">
+                <label for="lastMinutes">last x minutes</label>
+                <input type="number" id="lastMinutes" min="1" value="10" style="width: 90px;">
+                <button onclick="toggleAutoRefresh()" class="auto-refresh-btn">auto refresh: <span id="autorefresh-status">OFF</span></button>
+              </div>
+              <!-- Střed: Max points, Export (pod sebe, centrovaně) -->
+              <div id="center-bottom-panel">
+                <div class="panel-block">
+                  <label for="maxPoints">Max points</label>
+                  <input type="number" id="maxPoints" min="10" value="200">
+                </div>
+                <div class="panel-block">
+                  <label>Export to</label>
+                  <button onclick="downloadCSV()" class="csv-btn">CSV</button>
+                </div>
+              </div>
+              <!-- Pravý: Select from, to, Search -->
+              <div id="right-bottom-panel">
+                <label for="from">Select from</label>
+                <input type="datetime-local" id="from">
+                <label for="to">Select to</label>
+                <input type="datetime-local" id="to">
+                <button onclick="loadData()" class="search-btn">Search</button>
+              </div>
             </div>
           </div>
         </div>
-        <!-- Filtry -->
-        <div id="filter-panel">
-          <div class="filter-block">
-            <label for="lastMinutes">last x minutes</label>
-            <input type="number" id="lastMinutes" min="1" value="10" style="width: 90px;">
-            <button onclick="toggleAutoRefresh()" class="auto-refresh-btn">auto refresh: <span id="autorefresh-status">OFF</span></button>
-          </div>
-          <div class="filter-block">
-            <label for="from">Select from</label>
-            <input type="datetime-local" id="from">
-            <label for="to">Select to</label>
-            <input type="datetime-local" id="to">
-            <button onclick="loadData()" class="search-btn">Search</button>
-          </div>
+        <!-- Správa zařízení -->
+        <div id="device-admin" style="display:none">
+          <h2>Správa senzorů</h2>
+          <table id="sensorsTable">
+            <thead>
+              <tr>
+                <th>UUID</th>
+                <th>Jméno</th>
+                <th>Veličina</th>
+                <th>Jednotky</th>
+                <th>Uložit</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
-        <!-- Výpis výsledného pole -->
-        <!--<div id="chartDataString"></div>-->
       </div>
     </div>
   </div>
-  <!-- JS logika -->
-  <script src="static/main.js"></script>
+  <script src="/static/main.js"></script>
 </body>
 </html>

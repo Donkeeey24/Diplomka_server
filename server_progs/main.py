@@ -1,15 +1,14 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import asyncpg
 import os
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from auth import authenticate_user, create_access_token, get_current_user
-from datetime import timedelta
 
 app = FastAPI()
 app.add_middleware(
@@ -61,8 +60,6 @@ def parse_time(ts):
         except Exception:
             return None
 
-# --------- Oprava zde: /data a /sensors jsou chráněné, / je veřejné --------
-
 @app.get("/data")
 async def get_data(
     from_time: Optional[str] = Query(None),
@@ -101,7 +98,36 @@ async def get_sensors(current_user: dict = Depends(get_current_user)):
 async def protected_route(current_user: dict = Depends(get_current_user)):
     return {"msg": f"Hello {current_user['username']}"}
 
-# --------- Veřejný endpoint pro root, aby šel zobrazit login modal ---------
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
+
+# --- NOVÉ ENDPOINTY PRO SPRÁVU METADAT SENZORŮ ---
+
+@app.get("/sensor-metadata")
+async def get_sensor_metadata(current_user: dict = Depends(get_current_user)):
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM sensor_metadata")
+        return [dict(row) for row in rows]
+
+@app.post("/sensor-metadata/{sensor_uuid}")
+async def update_sensor_metadata(
+    sensor_uuid: str,
+    name: str = Body(...),
+    value_type: str = Body(...),
+    unit: str = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO sensor_metadata(sensor_uuid, name, value_type, unit)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT(sensor_uuid) DO UPDATE
+            SET name = EXCLUDED.name,
+                value_type = EXCLUDED.value_type,
+                unit = EXCLUDED.unit
+            """,
+            sensor_uuid, name, value_type, unit
+        )
+    return {"ok": True}
