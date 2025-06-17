@@ -268,7 +268,7 @@
           </div>
         </div>
         <!-- Výpis výsledného pole -->
-        <!-- <div id="chartDataString"></div> -->
+        <!--<div id="chartDataString"></div>-->
       </div>
     </div>
   </div>
@@ -397,7 +397,7 @@
 
       // Výpis výsledného pole pro Chart.js do stránky
       const chartDataString = JSON.stringify(chartData, null, 2);
-      document.getElementById("chartDataString").textContent = chartDataString;
+      // document.getElementById("chartDataString").textContent = chartDataString;
 
       const ctx = document.getElementById('myChart').getContext('2d');
       if (chart) chart.destroy();
