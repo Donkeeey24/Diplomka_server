@@ -41,20 +41,19 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     restart: unless-stopped
-
-  mqtt-fake-sender:
-    build:
-      context: ./mqtt-fake-sender
-      dockerfile: Dockerfile
-    container_name: mqtt_fake_sender
-    environment:
-      - BROKER_HOST=mosquitto
-      - BROKER_PORT=1883
-      - TOPIC=/events
-    depends_on:
-      - mosquitto
-    restart: unless-stopped
-
+    
+#  mqtt-fake-sender:
+#    build:
+#      context: ./mqtt-fake-sender
+#      dockerfile: Dockerfile
+#    container_name: mqtt_fake_sender
+#    environment:
+#      - BROKER_HOST=mosquitto
+#      - BROKER_PORT=1883
+#      - TOPIC=/events
+#    depends_on:
+#      - mosquitto
+#    restart: unless-stopped
 
 volumes:
   pg_data:
